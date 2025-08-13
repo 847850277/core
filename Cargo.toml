@@ -34,6 +34,7 @@ members = [
     "./crates/store/impl/rocksdb",
     "./crates/utils/actix",
     "./crates/version",
+    "./crates/url-research",
 
     "./apps/kv-store",
 

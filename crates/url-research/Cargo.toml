@@ -10,6 +10,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 eyre = { workspace = true }
 camino = { workspace = true }
+calimero-primitives = { workspace = true }
 
 [[bin]]
 name = "url_behavior_test"
@@ -26,3 +27,11 @@ path = "src/bin/four_solutions_demo.rs"
 [[bin]]
 name = "path_management_demo"
 path = "src/bin/path_management_demo.rs"
+
+[[bin]]
+name = "solution_one_test"
+path = "src/bin/solution_one_test.rs"
+
+[[bin]]
+name = "complete_solution_demo"
+path = "src/bin/complete_solution_demo.rs"

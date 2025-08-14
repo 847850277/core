@@ -10648,6 +10648,7 @@ dependencies = [
 name = "url-research"
 version = "0.1.0"
 dependencies = [
+ "calimero-primitives",
  "camino",
  "eyre",
  "serde",

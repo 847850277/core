@@ -93,11 +93,13 @@ impl NodeClient {
         );
 
         let application_id = {
+            // 方案一：从 ApplicationId 计算中排除 source 字段
+            // 确保 ApplicationId 仅基于应用内容，而不依赖于安装路径
             let components = (
-                application.bytecode,
-                application.size,
-                &application.source,
-                &application.metadata,
+                application.bytecode,     // BlobId - 基于文件内容的哈希
+                application.size,         // 文件大小
+                &application.metadata,    // 应用元数据
+                // 注意：故意排除 &application.source 以避免路径依赖
             );
 
             ApplicationId::from(*Hash::hash_borsh(&components)?)
@@ -127,11 +129,10 @@ impl NodeClient {
             .add_blob(file.compat(), Some(expected_size), None)
             .await?;
 
-        let Ok(uri) = Url::from_file_path(path) else {
-            bail!("non-absolute path")
-        };
+        // 方案一：使用通用本地标识符，隐藏实际文件路径
+        let local_source: ApplicationSource = "local://application".parse()?;
 
-        self.install_application(&blob_id, size, &uri.as_str().parse()?, metadata)
+        self.install_application(&blob_id, size, &local_source, metadata)
     }
 
     pub async fn install_application_from_url(

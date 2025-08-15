@@ -129,10 +129,50 @@ impl NodeClient {
             .add_blob(file.compat(), Some(expected_size), None)
             .await?;
 
-        // 方案一：使用通用本地标识符，隐藏实际文件路径
-        let local_source: ApplicationSource = "local://application".parse()?;
+        let Ok(uri) = Url::from_file_path(path) else {
+            bail!("non-absolute path")
+        };
+        // 打印输入metadata
+        println!("Installing application from path: {}", uri);
+        println!("Metadata: {:?}", metadata);
 
-        self.install_application(&blob_id, size, &local_source, metadata)
+        self.install_application(&blob_id, size, &uri.as_str().parse()?, metadata)
+
+        // // 方案一：使用通用本地标识符，隐藏实际文件路径
+        // tracing::info!("🔍 方案一工作原理详解:");
+        // tracing::info!("  📁 原始文件路径: {}", path.as_str());
+        // tracing::info!("  📦 文件已上传为 Blob: {}", blob_id);
+        // tracing::info!("  📏 文件大小: {} bytes", size);
+        //
+        // // 关键点1: ApplicationSource 本质上就是一个 Url 的包装器
+        // let local_source: ApplicationSource = "local://application".parse()?;
+        // tracing::info!("  🔗 ApplicationSource 本质: Url 包装器");
+        // tracing::info!("  🎭 隐私保护策略: '{}' -> '{}'", path.as_str(), local_source);
+        //
+        // // 关键点：验证隐私保护的有效性
+        // tracing::info!("  �️ 隐私保护验证:");
+        // tracing::info!("     • 原始路径: {}", path.as_str());
+        // tracing::info!("     • 存储的source: {}", local_source);
+        // tracing::info!("     • 路径是否相等: {}", path.as_str() == local_source.to_string());
+        // tracing::info!("     • 能否从source反推路径: ❌ 不可能");
+        // tracing::info!("     • 用户隐私是否受保护: ✅ 完全保护");
+        //
+        // // 关键点2: source 字段只用于显示和审计，不影响应用程序的查找和执行
+        // tracing::info!("  🎯 关键原理: source 字段仅用于显示，应用查找依赖 ApplicationId");
+        // tracing::info!("  🆔 ApplicationId 计算: 基于文件内容(blob_id) + 大小 + 元数据，不包含 source");
+        //
+        // // 关键点3: 实际的应用程序文件内容已经存储在 blob 系统中
+        // tracing::info!("  💾 文件存储: 应用程序字节码已安全存储在 Blob 系统中");
+        // tracing::info!("  🔍 文件查找: 通过 blob_id({}) 可以找到实际的 WASM 字节码", blob_id);
+        //
+        // // 关键点4: 解释为什么这种替换是安全的
+        // tracing::info!("  ✅ 安全性保证:");
+        // tracing::info!("     • 应用执行时使用 blob_id 获取字节码，与 source 无关");
+        // tracing::info!("     • ApplicationId 不依赖 source，确保应用身份的一致性");
+        // tracing::info!("     • 本地路径信息完全隐藏，保护用户隐私");
+        // tracing::info!("     • 应用功能完全不受影响，只是来源显示被统一化");
+        //
+        // self.install_application(&blob_id, size, &local_source, metadata)
     }
 
     pub async fn install_application_from_url(
@@ -157,6 +197,10 @@ impl NodeClient {
                 expected_hash,
             )
             .await?;
+
+        // 打印输入metadata
+        println!("Installing application from path: {}", uri);
+        println!("Metadata: {:?}", metadata);
 
         self.install_application(&blob_id, size, &uri, metadata)
     }

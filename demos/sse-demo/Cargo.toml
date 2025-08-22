@@ -1,0 +1,44 @@
+[package]
+name = "sse-demo"
+version = "0.1.0"
+edition = "2021"
+authors = ["Calimero Limited <info@calimero.network>"]
+description = "Server-Sent Events (SSE) demonstration for replacing WebSocket functionality"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# Web server framework
+axum = { workspace = true, features = ["ws"] }
+tokio = { workspace = true, features = ["full"] }
+tower = { workspace = true }
+tower-http = { workspace = true, features = ["fs", "cors"] }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+# Error handling and logging
+eyre = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+# Async utilities
+futures-util = { workspace = true }
+tokio-stream = { workspace = true, features = ["sync"] }
+
+# Utilities
+rand = { workspace = true }
+uuid = { version = "1.10", features = ["v4", "serde"] }
+
+# For the client
+reqwest = { workspace = true, features = ["json", "stream"] }
+reqwest-eventsource = "0.6"
+urlencoding = "2.1"
+
+[[bin]]
+name = "sse-server"
+path = "src/main.rs"
+
+[[bin]]  
+name = "sse-client"
+path = "src/client.rs"

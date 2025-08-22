@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE Demo - Server-Sent Events</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .control-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .control-section h3 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 1.3rem;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status {
+            background: #e8f5e8;
+            border: 2px solid #4caf50;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            text-align: center;
+            font-weight: 600;
+            display: none;
+        }
+
+        .status.connected {
+            background: #e8f5e8;
+            border-color: #4caf50;
+            color: #2e7d32;
+            display: block;
+        }
+
+        .status.disconnected {
+            background: #ffebee;
+            border-color: #f44336;
+            color: #c62828;
+            display: block;
+        }
+
+        .events {
+            background: #1e1e1e;
+            color: #f5f5f5;
+            padding: 25px;
+            border-radius: 15px;
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Consolas', monospace;
+            line-height: 1.6;
+        }
+
+        .events h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .event {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 4px solid;
+            background: rgba(255,255,255,0.05);
+            font-size: 0.9rem;
+        }
+
+        .event.context {
+            border-left-color: #4caf50;
+        }
+
+        .event.system {
+            border-left-color: #ff9800;
+        }
+
+        .event.heartbeat {
+            border-left-color: #2196f3;
+            opacity: 0.7;
+        }
+
+        .event.error {
+            border-left-color: #f44336;
+        }
+
+        .event-time {
+            color: #888;
+            font-size: 0.8rem;
+        }
+
+        .event-type {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .event-data {
+            margin-top: 8px;
+            padding-left: 15px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea20, #764ba220);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            border: 2px solid #667eea30;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #666;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+        }
+
+        .clear-btn {
+            background: #f44336;
+            margin-top: 10px;
+        }
+
+        .clear-btn:hover {
+            box-shadow: 0 10px 20px rgba(244, 67, 54, 0.3);
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .pulse {
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #333;
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            font-size: 0.8rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 SSE Demo</h1>
+            <p>Server-Sent Events demonstration replacing WebSocket functionality</p>
+        </div>
+        
+        <div class="content">
+            <div class="status" id="status">
+                ⏳ Connecting...
+            </div>
+
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="eventCount">0</div>
+                    <div class="stat-label">Events Received</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="connectionTime">--</div>
+                    <div class="stat-label">Connected For</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="lastEventTime">--</div>
+                    <div class="stat-label">Last Event</div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-section">
+                    <h3>🎛️ Connection Controls</h3>
+                    <div class="form-group">
+                        <label for="contexts">Subscribe to Contexts:</label>
+                        <input type="text" id="contexts" placeholder="context-1,context-2,context-3 (empty = all)" 
+                               value="context-1,context-2">
+                        <div class="tooltip">
+                            <span class="tooltiptext">Enter comma-separated context IDs to filter events, or leave empty to receive all events</span>
+                        </div>
+                    </div>
+                    <button onclick="reconnect()" id="connectBtn">🔗 Connect</button>
+                    <button onclick="disconnect()" id="disconnectBtn" disabled>🔌 Disconnect</button>
+                </div>
+
+                <div class="control-section">
+                    <h3>⚡ Trigger Events</h3>
+                    <div class="form-group">
+                        <label for="triggerContext">Context:</label>
+                        <input type="text" id="triggerContext" placeholder="test-context" value="manual-test">
+                    </div>
+                    <div class="form-group">
+                        <label for="triggerMessage">Message:</label>
+                        <input type="text" id="triggerMessage" placeholder="Custom message" value="Hello from browser!">
+                    </div>
+                    <button onclick="triggerEvent()">🎯 Trigger Event</button>
+                    <button onclick="clearEvents()" class="clear-btn">🗑️ Clear Events</button>
+                </div>
+            </div>
+
+            <div class="events" id="events">
+                <h3>📡 Live Events Stream</h3>
+                <div>Waiting for events...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let eventSource = null;
+        let eventCount = 0;
+        let connectionStartTime = null;
+        let connectionTimeInterval = null;
+
+        function updateStatus(message, connected) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${connected ? 'connected' : 'disconnected'}`;
+        }
+
+        function updateStats() {
+            document.getElementById('eventCount').textContent = eventCount;
+            
+            if (connectionStartTime) {
+                const now = new Date();
+                const diff = Math.floor((now - connectionStartTime) / 1000);
+                const minutes = Math.floor(diff / 60);
+                const seconds = diff % 60;
+                document.getElementById('connectionTime').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        function addEvent(type, data) {
+            const eventsContainer = document.getElementById('events');
+            const eventElement = document.createElement('div');
+            eventElement.className = `event ${type}`;
+            
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            
+            let content = `<div class="event-time">[${timeStr}]</div>`;
+            content += `<div class="event-type">${type.toUpperCase()}</div>`;
+            
+            if (typeof data === 'object') {
+                content += `<div class="event-data"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+            } else {
+                content += `<div class="event-data">${data}</div>`;
+            }
+            
+            eventElement.innerHTML = content;
+            
+            // Insert at the top (after the header)
+            const header = eventsContainer.querySelector('h3');
+            if (header.nextSibling) {
+                eventsContainer.insertBefore(eventElement, header.nextSibling);
+            } else {
+                eventsContainer.appendChild(eventElement);
+            }
+            
+            // Remove old events to prevent infinite growth
+            const events = eventsContainer.querySelectorAll('.event');
+            if (events.length > 50) {
+                events[events.length - 1].remove();
+            }
+            
+            eventCount++;
+            document.getElementById('lastEventTime').textContent = timeStr;
+            updateStats();
+        }
+
+        function connect() {
+            if (eventSource) {
+                disconnect();
+            }
+
+            const contexts = document.getElementById('contexts').value.trim();
+            let url = '/events';
+            if (contexts) {
+                url += `?contexts=${encodeURIComponent(contexts)}`;
+            }
+
+            updateStatus('🔄 Connecting...', false);
+            
+            eventSource = new EventSource(url);
+            connectionStartTime = new Date();
+            eventCount = 0;
+
+            eventSource.onopen = function() {
+                updateStatus('🟢 Connected to SSE stream', true);
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                
+                connectionTimeInterval = setInterval(updateStats, 1000);
+                addEvent('system', { message: 'Connected to SSE stream', contexts: contexts || 'all' });
+            };
+
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    addEvent('message', data);
+                } catch (e) {
+                    addEvent('raw', event.data);
+                }
+            };
+
+            eventSource.addEventListener('context', function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    addEvent('context', data);
+                } catch (e) {
+                    addEvent('context', event.data);
+                }
+            });
+
+            eventSource.addEventListener('system', function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    addEvent('system', data);
+                } catch (e) {
+                    addEvent('system', event.data);
+                }
+            });
+
+            eventSource.addEventListener('heartbeat', function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    addEvent('heartbeat', data);
+                } catch (e) {
+                    addEvent('heartbeat', event.data);
+                }
+            });
+
+            eventSource.addEventListener('error', function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    addEvent('error', data);
+                } catch (e) {
+                    addEvent('error', event.data);
+                }
+            });
+
+            eventSource.onerror = function(event) {
+                updateStatus('🔴 Connection failed or lost', false);
+                addEvent('error', { message: 'SSE connection error', readyState: eventSource.readyState });
+                
+                // Auto-reconnect after delay
+                setTimeout(() => {
+                    if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+                        addEvent('system', { message: 'Attempting to reconnect...' });
+                        connect();
+                    }
+                }, 5000);
+            };
+        }
+
+        function disconnect() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            
+            if (connectionTimeInterval) {
+                clearInterval(connectionTimeInterval);
+                connectionTimeInterval = null;
+            }
+            
+            connectionStartTime = null;
+            updateStatus('⚫ Disconnected', false);
+            document.getElementById('connectBtn').disabled = false;
+            document.getElementById('disconnectBtn').disabled = true;
+            document.getElementById('connectionTime').textContent = '--';
+            
+            addEvent('system', { message: 'Disconnected from SSE stream' });
+        }
+
+        function reconnect() {
+            disconnect();
+            setTimeout(connect, 100);
+        }
+
+        async function triggerEvent() {
+            const context = document.getElementById('triggerContext').value.trim() || 'test-context';
+            const message = document.getElementById('triggerMessage').value.trim() || 'Manual trigger';
+            
+            try {
+                const response = await fetch(`/trigger?context=${encodeURIComponent(context)}&message=${encodeURIComponent(message)}`);
+                const result = await response.json();
+                
+                if (response.ok) {
+                    addEvent('system', { message: `Triggered event for context "${context}"`, trigger: true });
+                } else {
+                    addEvent('error', { message: 'Failed to trigger event', error: result });
+                }
+            } catch (error) {
+                addEvent('error', { message: 'Network error triggering event', error: error.message });
+            }
+        }
+
+        function clearEvents() {
+            const eventsContainer = document.getElementById('events');
+            const header = eventsContainer.querySelector('h3');
+            eventsContainer.innerHTML = '';
+            eventsContainer.appendChild(header);
+            eventsContainer.appendChild(document.createTextNode('Events cleared...'));
+            eventCount = 0;
+            updateStats();
+        }
+
+        // Auto-connect on page load
+        window.addEventListener('load', function() {
+            setTimeout(connect, 500);
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            disconnect();
+        });
+
+        // Handle enter key in input fields
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                if (e.target.id === 'contexts') {
+                    reconnect();
+                } else if (e.target.id === 'triggerContext' || e.target.id === 'triggerMessage') {
+                    triggerEvent();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -41,6 +41,8 @@ members = [
 
     "./e2e-tests",
     "./tools/calimero-abi",
+    
+    "./demos/sse-demo",
 ]
 
 [workspace.dependencies]

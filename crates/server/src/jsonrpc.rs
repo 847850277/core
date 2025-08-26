@@ -1,13 +1,24 @@
 use std::sync::Arc;
 
-use axum::routing::{post, Router};
+use axum::extract::{Query, State};
+use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::response::Response;
+use axum::response::IntoResponse;
+use axum::routing::{get, post, Router};
 use axum::{Extension, Json};
 use calimero_context_primitives::client::ContextClient;
+use calimero_node_primitives::client::NodeClient;
+use calimero_primitives::events::NodeEvent;
 use calimero_server_primitives::jsonrpc::{
     Request as PrimitiveRequest, RequestPayload, Response as PrimitiveResponse, ResponseBody,
     ResponseBodyError, ResponseBodyResult, ServerResponseError,
 };
+use chrono;
+use futures_util::{stream::BoxStream, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::{convert::Infallible, time::Duration};
+use tokio::sync::broadcast;
+use tokio_stream::wrappers::BroadcastStream;
 use tracing::{debug, info};
 
 use crate::config::ServerConfig;
@@ -30,11 +41,13 @@ impl JsonRpcConfig {
 
 pub(crate) struct ServiceState {
     ctx_client: ContextClient,
+    node_client: Option<NodeClient>,
 }
 
 pub(crate) fn service(
     config: &ServerConfig,
     ctx_client: ContextClient,
+    node_client: Option<NodeClient>,
 ) -> Option<(&'static str, Router)> {
     let path = "/jsonrpc"; // todo! source from config
 
@@ -42,10 +55,13 @@ pub(crate) fn service(
         info!("JSON RPC server listening on {}/http{{{}}}", listen, path);
     }
 
-    let state = Arc::new(ServiceState { ctx_client });
-    let handler = post(handle_request).layer(Extension(Arc::clone(&state)));
+    let state = Arc::new(ServiceState { 
+        ctx_client,
+        node_client: node_client.clone(),
+    });
+    let rpc_handler = post(handle_request).layer(Extension(Arc::clone(&state)));
 
-    let router = Router::new().route("/", handler);
+    let router = Router::new().route("/", rpc_handler);
 
     Some((path, router))
 }
@@ -121,4 +137,72 @@ impl<T: Serialize, E: Serialize> ToResponseBody for Result<T, RpcError<E>> {
             ServerResponseError::InternalError { err: Some(err) },
         ))
     }
+}
+
+// SSE 相关实现
+#[derive(serde::Deserialize)]
+struct SseEventsQuery {
+    context_id: Option<String>,
+}
+
+async fn handle_sse_events(
+    State(state): State<Arc<ServiceState>>,
+    Query(params): Query<SseEventsQuery>,
+) -> Response {
+    // 创建一个虚拟的广播通道用于演示
+    // 在真实实现中，这应该来自 node_client 的事件流
+    let (tx, _) = broadcast::channel::<NodeEvent>(100);
+    let stream = create_sse_event_stream(tx.subscribe(), params.context_id).await;
+
+    Sse::new(stream)
+        .keep_alive(KeepAlive::new().interval(Duration::from_secs(30)))
+        .into_response()
+}
+
+async fn create_sse_event_stream(
+    mut receiver: broadcast::Receiver<NodeEvent>,
+    context_id_filter: Option<String>,
+) -> BoxStream<'static, Result<Event, Infallible>> {
+    let stream = BroadcastStream::new(receiver);
+
+    let stream = stream
+        .filter_map(|result| async move { result.ok() })
+        .filter_map(move |event| {
+            let context_filter = context_id_filter.clone();
+            async move {
+                match &event {
+                    NodeEvent::Context(context_event) => {
+                        if let Some(ref filter_id) = context_filter {
+                            let context_id_str = hex::encode(context_event.context_id.as_ref());
+                            if context_id_str != *filter_id {
+                                return None;
+                            }
+                        }
+                        Some(event)
+                    }
+                }
+            }
+        })
+        .map(|event| {
+            let event_type = match &event {
+                NodeEvent::Context(context_event) => {
+                    match &context_event.payload {
+                        calimero_primitives::events::ContextEventPayload::StateMutation(_) => "state_mutation",
+                        calimero_primitives::events::ContextEventPayload::ExecutionEvent(_) => "execution_event",
+                    }
+                }
+            };
+
+            let data = serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string());
+
+            Ok(Event::default()
+                .event(event_type)
+                .data(data)
+                .id(format!(
+                    "{}",
+                    chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+                )))
+        });
+
+    Box::pin(stream)
 }

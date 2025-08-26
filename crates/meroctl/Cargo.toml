@@ -23,6 +23,7 @@ libp2p.workspace = true
 notify.workspace = true
 rand.workspace = true
 reqwest = { workspace = true, features = ["json"] }
+reqwest-eventsource = "0.6.0"
 semver = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true

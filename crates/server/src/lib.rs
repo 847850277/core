@@ -1,19 +1,33 @@
 use core::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
+use axum::extract::{Query, State};
 use axum::http::Method;
+use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::response::Response;
+use axum::response::IntoResponse;
+use axum::routing::get;
 use axum::Router;
 use calimero_context_primitives::client::ContextClient;
 use calimero_node_primitives::client::NodeClient;
+use calimero_primitives::events::NodeEvent;
 use calimero_store::Store;
+use chrono;
 use config::ServerConfig;
 use eyre::{bail, Result as EyreResult};
+use futures_util::{stream::BoxStream, Stream, StreamExt};
+use hex;
 use multiaddr::Protocol;
+use serde::Deserialize;
+use std::{convert::Infallible, time::Duration};
 use tokio::net::TcpListener;
+use tokio::sync::broadcast;
 use tokio::task::JoinSet;
+use tokio_stream::wrappers::BroadcastStream;
 use tower_http::cors::{Any, CorsLayer};
-use tracing::warn;
+use tracing::{info, warn};
 
+#[cfg(feature = "admin")]
 use crate::admin::service::{setup, site};
 
 #[cfg(feature = "admin")]
@@ -25,6 +39,7 @@ pub mod jsonrpc;
 mod middleware;
 #[cfg(feature = "websocket")]
 pub mod ws;
+mod sse;
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -102,10 +117,18 @@ pub async fn start(
 
     #[cfg(feature = "jsonrpc")]
     {
-        if let Some((path, router)) = jsonrpc::service(&config, ctx_client) {
+        if let Some((path, router)) = jsonrpc::service(&config, ctx_client, Some(node_client.clone())) {
             app = app.nest(path, router);
             serviced = true;
         }
+    }
+
+    // 添加独立的 SSE 支持
+    {
+        info!("Adding SSE endpoint at /events");
+        let sse_handler = get(sse::handle_sse_events).with_state(Arc::new(node_client.clone()));
+        app = app.route("/events", sse_handler);
+        serviced = true;
     }
 
     #[cfg(feature = "websocket")]
@@ -162,6 +185,14 @@ pub async fn start(
 
     Ok(())
 }
+
+// SSE 相关实现
+#[derive(serde::Deserialize)]
+struct SseEventsQuery {
+    context_id: Option<String>,
+}
+
+
 
 #[cfg(test)]
 mod integration_tests_package_usage {

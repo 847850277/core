@@ -3,8 +3,11 @@ use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use libp2p::identity::Keypair;
 use multiaddr::{Multiaddr, Protocol};
 
+#[cfg(feature = "admin")]
 use crate::admin::service::AdminConfig;
+#[cfg(feature = "jsonrpc")]
 use crate::jsonrpc::JsonRpcConfig;
+#[cfg(feature = "websocket")]
 use crate::ws::WsConfig;
 
 pub const DEFAULT_PORT: u16 = 2528; // (CHAT in T9) + 100
@@ -35,15 +38,21 @@ impl ServerConfig {
     pub const fn new(
         listen: Vec<Multiaddr>,
         identity: Keypair,
+        #[cfg(feature = "admin")]
         admin: Option<AdminConfig>,
+        #[cfg(feature = "jsonrpc")]
         jsonrpc: Option<JsonRpcConfig>,
+        #[cfg(feature = "websocket")]
         websocket: Option<WsConfig>,
     ) -> Self {
         Self {
             listen,
             identity,
+            #[cfg(feature = "admin")]
             admin,
+            #[cfg(feature = "jsonrpc")]
             jsonrpc,
+            #[cfg(feature = "websocket")]
             websocket,
         }
     }

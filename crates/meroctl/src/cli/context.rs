@@ -19,6 +19,7 @@ pub mod proposals;
 pub mod sync;
 pub mod update;
 pub mod watch;
+pub mod watch_sse;
 
 pub const EXAMPLES: &str = r"
   # List all contexts
@@ -60,6 +61,8 @@ pub enum ContextSubCommands {
     Delete(delete::DeleteCommand),
     #[command(alias = "ws")]
     Watch(watch::WatchCommand),
+    #[command(alias = "sse")]
+    WatchSse(watch_sse::WatchSseCommand),
     Update(update::UpdateCommand),
     Identity(identity::ContextIdentityCommand),
     Alias(alias::ContextAliasCommand),
@@ -96,6 +99,7 @@ impl ContextCommand {
             ContextSubCommands::Join(join) => join.run(environment).await,
             ContextSubCommands::List(list) => list.run(environment).await,
             ContextSubCommands::Watch(watch) => watch.run(environment).await,
+            ContextSubCommands::WatchSse(watch_sse) => watch_sse.run(environment).await,
             ContextSubCommands::Update(update) => update.run(environment).await,
             ContextSubCommands::Identity(identity) => identity.run(environment).await,
             ContextSubCommands::Alias(alias) => alias.run(environment).await,

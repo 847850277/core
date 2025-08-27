@@ -16,6 +16,12 @@ merod  --node-name node1 run
 ./target/debug/meroctl context identity list 
 ```
 
+- watch-sse 命令
+```bash
+./target/debug/meroctl --api http://localhost:2528 context watch-sse 6daWwM31pH2M2BZTfcJJehQhLJJfTeNnRTWuWXgGaFUD 
+```
+
+
 好的，让我测试一下`get`操作。首先启动监控，然后执行get操作来看看是否会产生事件： 让我重新启动watch命令： 让我直接启动一个新的watch命令： 现在测试get操作： 很好！我们可以看到：
 
 ## 📊 **get操作测试结果**

@@ -3,6 +3,7 @@ use std::process::Stdio;
 
 use calimero_primitives::alias::Alias;
 use calimero_primitives::context::ContextId;
+use calimero_primitives::events::NodeEvent;
 use clap::Parser;
 use comfy_table::{Cell, Color, Table};
 use eyre::{OptionExt, Result};
@@ -52,22 +53,40 @@ pub struct WatchSseCommand {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct SseEventResponse {
-    context_id: String,
+struct SseEventInfo {
     event_type: String,
-    data: serde_json::Value,
-    timestamp: u64,
+    event_id: String,
+    data: NodeEvent,
 }
 
-impl Report for SseEventResponse {
+impl Report for SseEventInfo {
     fn report(&self) {
         let mut table = Table::new();
         let _ = table.set_header(vec![Cell::new("SSE Event").fg(Color::Green)]);
 
-        let _ = table.add_row(vec![format!("Context ID: {}", self.context_id)]);
         let _ = table.add_row(vec![format!("Event Type: {}", self.event_type)]);
-        let _ = table.add_row(vec![format!("Timestamp: {}", self.timestamp)]);
-        let _ = table.add_row(vec![format!("Data: {:#}", self.data)]);
+        let _ = table.add_row(vec![format!("Event ID: {}", self.event_id)]);
+        
+        // 格式化事件数据
+        match &self.data {
+            NodeEvent::Context(ctx_event) => {
+                let _ = table.add_row(vec![format!("Context ID: {}", ctx_event.context_id)]);
+                match &ctx_event.payload {
+                    calimero_primitives::events::ContextEventPayload::StateMutation(state_mut) => {
+                        let _ = table.add_row(vec![format!("Event: State Mutation")]);
+                        let _ = table.add_row(vec![format!("New Root: {}", state_mut.new_root)]);
+                    }
+                    calimero_primitives::events::ContextEventPayload::ExecutionEvent(exec_event) => {
+                        let _ = table.add_row(vec![format!("Event: Execution Event")]);
+                        let _ = table.add_row(vec![format!("Events Count: {}", exec_event.events.len())]);
+                        for (i, event) in exec_event.events.iter().enumerate() {
+                            let data_str = String::from_utf8_lossy(&event.data);
+                            let _ = table.add_row(vec![format!("  Event {}: {} - {}", i + 1, event.kind, data_str)]);
+                        }
+                    }
+                }
+            }
+        }
 
         println!("{table}");
     }
@@ -108,7 +127,13 @@ impl WatchSseCommand {
         // 构建SSE URL - 现在 SSE 在独立的 /events 路径
         let mut sse_url = connection.api_url.clone();
         sse_url.set_path("events");
-        sse_url.set_query(Some(&format!("context_id={}", context_id)));
+        
+        // 如果有具体的 context_id，将 Base58 编码的 ContextId 转换为十六进制格式
+        if context_id.to_string() != "default" {
+            let context_id_hex = hex::encode(context_id.as_ref());
+            sse_url.set_query(Some(&format!("context_id={}", context_id_hex)));
+        }
+        // 如果是 default，不设置 context_id 参数，监听所有事件
 
         environment
             .output
@@ -141,63 +166,68 @@ impl WatchSseCommand {
                         .write(&InfoLine("🔗 SSE connection opened"));
                 }
                 Ok(Event::Message(message)) => {
-                    // 解析SSE事件
-                    match serde_json::from_str::<SseEventResponse>(&message.data) {
-                        Ok(sse_event) => {
-                            environment.output.write(&sse_event);
-
-                            if let Some(cmd) = &self.exec {
-                                if let Some(max_count) = self.count {
-                                    if event_count >= max_count {
-                                        break;
-                                    }
-                                }
-
-                                let mut child = Command::new(&cmd[0])
-                                    .args(&cmd[1..])
-                                    .stdin(Stdio::piped())
-                                    .spawn()?;
-
-                                let stdin = child.stdin.take();
-
-                                let event_data = message.data.clone();
-                                let stdin = tokio::spawn(async move {
-                                    let Some(mut stdin) = stdin else {
-                                        return Ok(());
-                                    };
-
-                                    stdin.write_all(event_data.as_bytes()).await
-                                });
-
-                                let output = child
-                                    .wait_with_output()
-                                    .await
-                                    .map_err(|e| eyre::eyre!("Failed to execute command: {}", e))?;
-
-                                stdin.await??;
-
-                                let outcome = ExecutionOutput {
-                                    cmd: cmd.into(),
-                                    status: output.status.code(),
-                                    stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-                                    stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-                                };
-
-                                environment.output.write(&outcome);
+                    // 创建事件信息结构
+                    let event_info = SseEventInfo {
+                        event_type: message.event.clone(),
+                        event_id: message.id.clone(),
+                        data: match serde_json::from_str::<NodeEvent>(&message.data) {
+                            Ok(event) => event,
+                            Err(e) => {
+                                environment
+                                    .output
+                                    .write(&ErrorLine(&format!("Failed to parse event data: {}", e)));
+                                continue;
                             }
+                        },
+                    };
 
-                            event_count += 1;
+                    environment.output.write(&event_info);
 
-                            if let Some(max_count) = self.count {
-                                if event_count >= max_count {
-                                    break;
-                                }
+                    if let Some(cmd) = &self.exec {
+                        if let Some(max_count) = self.count {
+                            if event_count >= max_count {
+                                break;
                             }
                         }
-                        Err(e) => {
-                            environment
-                                .output
-                                .write(&ErrorLine(&format!("Failed to parse SSE event: {}", e)));
+
+                        let mut child = Command::new(&cmd[0])
+                            .args(&cmd[1..])
+                            .stdin(Stdio::piped())
+                            .spawn()?;
+
+                        let stdin = child.stdin.take();
+
+                        let event_data = message.data.clone();
+                        let stdin = tokio::spawn(async move {
+                            let Some(mut stdin) = stdin else {
+                                return Ok(());
+                            };
+
+                            stdin.write_all(event_data.as_bytes()).await
+                        });
+
+                        let output = child
+                            .wait_with_output()
+                            .await
+                            .map_err(|e| eyre::eyre!("Failed to execute command: {}", e))?;
+
+                        stdin.await??;
+
+                        let outcome = ExecutionOutput {
+                            cmd: cmd.into(),
+                            status: output.status.code(),
+                            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+                            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+                        };
+
+                        environment.output.write(&outcome);
+                    }
+
+                    event_count += 1;
+
+                    if let Some(max_count) = self.count {
+                        if event_count >= max_count {
+                            break;
                         }
                     }
                 }

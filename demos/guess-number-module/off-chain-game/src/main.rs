@@ -1,14 +1,23 @@
 use std::io::{self, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+// Mock Calimero types for compilation
+#[derive(Debug, Clone)]
+pub struct ContextManager;
 
-use calimero_sdk::context::ContextManager;
-use calimero_primitives::identity::Did;
+#[derive(Debug, Clone)]
+pub struct Did(#[allow(dead_code)] String);
+
+impl Did {
+    pub fn new(id: String) -> Self {
+        Self(id)
+    }
+}
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -157,7 +166,7 @@ enum GameResult {
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    tracing_subscriber::init();
+    tracing_subscriber::fmt::init();
 
     let cli = Cli::parse();
 
@@ -335,7 +344,7 @@ async fn print_game_stats(game: &Game, success: bool) -> eyre::Result<()> {
     Ok(())
 }
 
-async fn store_game_result(record: &GameRecord) -> eyre::Result<()> {
+async fn store_game_result(_record: &GameRecord) -> eyre::Result<()> {
     println!("{}", "💾 正在保存游戏结果到区块链...".cyan());
 
     // TODO: Implement actual Calimero/NEAR storage

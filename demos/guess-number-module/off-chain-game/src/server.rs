@@ -22,7 +22,7 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 // Re-use types from main.rs
-use super::{GameConfig, GameRecord, PlayerStats};
+use off_chain_game::{GameConfig, GameRecord, PlayerStats};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateGameRequest {
@@ -211,7 +211,7 @@ impl AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::init();
+    tracing_subscriber::fmt::init();
 
     println!("{}", "🚀 Starting Guess Number Game Server...".bright_green().bold());
 
@@ -264,7 +264,109 @@ async fn serve_index() -> Html<String> {
 }
 
 async fn serve_game_page() -> Html<String> {
-    Html(include_str!("../static/game.html").to_string())
+    Html(r#"
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>猜数字游戏</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .container { text-align: center; }
+        input, button { margin: 10px; padding: 10px; font-size: 16px; }
+        .result { margin: 20px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 猜数字游戏</h1>
+        <p>我想了一个 1-100 之间的数字，你能猜到吗？</p>
+        <div id="game-area">
+            <input type="number" id="guess-input" placeholder="输入你的猜测" min="1" max="100">
+            <button onclick="makeGuess()">猜测</button>
+            <button onclick="newGame()">新游戏</button>
+        </div>
+        <div id="result"></div>
+        <div id="stats"></div>
+    </div>
+
+    <script>
+        let gameId = null;
+        let playerId = 'player_' + Math.random().toString(36).substr(2, 9);
+
+        async function newGame() {
+            try {
+                const response = await fetch('/api/games', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player_id: playerId, difficulty: 'normal' })
+                });
+                const data = await response.json();
+                gameId = data.game_id;
+                document.getElementById('result').innerHTML = '<div class="info">新游戏开始！猜一个 1-100 之间的数字</div>';
+                document.getElementById('guess-input').value = '';
+                document.getElementById('guess-input').focus();
+            } catch (error) {
+                document.getElementById('result').innerHTML = '<div class="error">创建游戏失败</div>';
+            }
+        }
+
+        async function makeGuess() {
+            if (!gameId) {
+                await newGame();
+                return;
+            }
+
+            const guess = parseInt(document.getElementById('guess-input').value);
+            if (!guess || guess < 1 || guess > 100) {
+                document.getElementById('result').innerHTML = '<div class="error">请输入 1-100 之间的数字</div>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/games/${gameId}/guess`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ guess: guess })
+                });
+                const data = await response.json();
+
+                let resultClass = 'info';
+                if (data.game_over) {
+                    resultClass = data.success ? 'success' : 'error';
+                    if (data.success) {
+                        document.getElementById('result').innerHTML = `<div class="${resultClass}">🎉 恭喜！你用了 ${data.attempts} 次就猜中了！答案是 ${data.target_number}</div>`;
+                    } else {
+                        document.getElementById('result').innerHTML = `<div class="${resultClass}">😞 游戏结束！答案是 ${data.target_number}，你用了 ${data.attempts} 次机会</div>`;
+                    }
+                    gameId = null;
+                } else {
+                    document.getElementById('result').innerHTML = `<div class="${resultClass}">${data.message} (第 ${data.attempts}/${data.max_attempts} 次)</div>`;
+                }
+
+                document.getElementById('guess-input').value = '';
+                document.getElementById('guess-input').focus();
+            } catch (error) {
+                document.getElementById('result').innerHTML = '<div class="error">猜测失败</div>';
+            }
+        }
+
+        document.getElementById('guess-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                makeGuess();
+            }
+        });
+
+        // 自动开始新游戏
+        newGame();
+    </script>
+</body>
+</html>
+"#.to_string())
 }
 
 async fn health_check() -> Json<serde_json::Value> {
@@ -487,10 +589,11 @@ async fn store_game_result(state: &AppState, record: &GameRecord) {
         record.player_id, record.attempts, record.success);
 
     // TODO: Store to Calimero/NEAR blockchain
+    let game_id = record.game_id;
     tokio::spawn(async move {
         // Simulate blockchain storage delay
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        info!("Game result stored to blockchain: {}", record.game_id);
+        info!("Game result stored to blockchain: {}", game_id);
     });
 }
 

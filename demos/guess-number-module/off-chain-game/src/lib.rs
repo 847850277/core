@@ -307,7 +307,7 @@ pub mod utils {
     }
 
     /// Calculate score based on attempts, difficulty, and time
-    pub fn calculate_game_score(record: &GameRecord, config: &GameConfig) -> u32 {
+    pub fn calculate_game_score(record: &GameRecord, _config: &GameConfig) -> u32 {
         if !record.success {
             return 0;
         }

@@ -6,6 +6,8 @@ use owo_colors::OwoColorize;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use reqwest::Client;
+use serde_json::json;
 // Mock Calimero types for compilation
 #[derive(Debug, Clone)]
 pub struct ContextManager;

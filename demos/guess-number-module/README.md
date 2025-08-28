@@ -2,6 +2,14 @@
 
 这个演示项目展示了如何将经典的 Rust 猜数字游戏与 Calimero Network 集成，实现链下游戏逻辑和链上结果存储的混合架构。游戏过程在本地执行，而游戏结果通过 Calimero 存储到 NEAR 区块链上。
 
+## 📚 文档导航
+
+- **[🚀 快速开始指南](./QUICK_START.md)** - 5分钟快速体验集成功能
+- **[📖 完整集成指南](./INTEGRATION_GUIDE.md)** - 详细的32步集成文档
+- **[🔌 API 参考文档](./API_REFERENCE.md)** - 完整的 API 接口说明
+- **[🚀 部署指南](./DEPLOYMENT_GUIDE.md)** - 生产环境部署指南
+- **[🧪 测试报告](./TEST_REPORT.md)** - SSE 功能测试验证结果
+
 ## 🎯 项目概述
 
 ### 核心特性

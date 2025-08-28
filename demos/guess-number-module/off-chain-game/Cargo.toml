@@ -1,0 +1,65 @@
+[package]
+name = "off-chain-game"
+version = "0.1.0"
+edition = "2021"
+authors = ["Calimero Limited <info@calimero.network>"]
+description = "Off-chain guessing number game with Calimero Network integration"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/calimero-network/core"
+
+[[bin]]
+name = "guess-number-client"
+path = "src/main.rs"
+
+[[bin]]
+name = "guess-number-server"
+path = "src/server.rs"
+
+[dependencies]
+# Game logic dependencies
+rand = "0.8.5"
+chrono = { version = "0.4.37", features = ["serde"] }
+
+# CLI and user interface
+clap = { version = "4.4.18", features = ["derive"] }
+owo-colors = "3.5.0"
+
+# Async runtime
+tokio = { version = "1.35.1", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0.196", features = ["derive"] }
+serde_json = "1.0.113"
+
+# Error handling
+thiserror = "1.0.56"
+eyre = "0.6.12"
+
+# HTTP server and client
+axum = "0.7.4"
+reqwest = { version = "0.12.2", features = ["json"] }
+tower = "0.4.13"
+tower-http = { version = "0.5.2", features = ["fs", "cors"] }
+
+# Calimero integration (workspace dependencies)
+calimero-sdk = { path = "../../../crates/sdk", optional = true }
+calimero-primitives = { path = "../../../crates/primitives" }
+calimero-context = { path = "../../../crates/context", optional = true }
+
+# Async traits
+async-trait = "0.1.68"
+
+# Utilities
+uuid = { version = "1.0", features = ["v4", "serde"] }
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+
+[dev-dependencies]
+tokio-test = "0.4.4"
+tempdir = "0.3.7"
+
+[features]
+default = ["client", "server"]
+client = []
+server = []
+calimero = ["dep:calimero-sdk", "dep:calimero-context"]

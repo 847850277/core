@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>猜数字游戏 - Calimero x NEAR</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h2 {
+            color: #5a67d8;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .game-section {
+            grid-column: 1 / -1;
+        }
+
+        .game-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .difficulty-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .difficulty-btn {
+            padding: 8px 16px;
+            border: 2px solid #5a67d8;
+            background: white;
+            color: #5a67d8;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .difficulty-btn:hover,
+        .difficulty-btn.active {
+            background: #5a67d8;
+            color: white;
+        }
+
+        .game-input {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .game-input input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .game-input input:focus {
+            outline: none;
+            border-color: #5a67d8;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: #5a67d8;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #4c51bf;
+        }
+
+        .btn:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #68d391;
+        }
+
+        .btn-secondary:hover {
+            background: #48bb78;
+        }
+
+        .game-status {
+            min-height: 80px;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            background: #f7fafc;
+            border-left: 4px solid #5a67d8;
+        }
+
+        .game-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .info-item {
+            text-align: center;
+            padding: 15px;
+            background: #edf2f7;
+            border-radius: 8px;
+        }
+
+        .info-item .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #5a67d8;
+            display: block;
+        }
+
+        .info-item .label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card .number {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #5a67d8;
+        }
+
+        .stat-card .label {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .history-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid transparent;
+        }
+
+        .history-item.success {
+            border-left-color: #68d391;
+        }
+
+        .history-item.failed {
+            border-left-color: #fc8181;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #5a67d8;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-message {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+
+        .status-message.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+
+        .status-message.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #feb2b2;
+        }
+
+        .status-message.info {
+            background: #bee3f8;
+            color: #2a4365;
+            border: 1px solid #90cdf4;
+        }
+
+        .status-message.warning {
+            background: #fefcbf;
+            color: #744210;
+            border: 1px solid #f6e05e;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .game-input {
+                flex-direction: column;
+            }
+
+            .game-info {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            opacity: 0.8;
+        }
+
+        .footer a {
+            color: #bee3f8;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 猜数字游戏</h1>
+            <p>链下游戏逻辑 + 链上结果存储 | 基于 Calimero Network & NEAR Protocol</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Game Section -->
+            <div class="card game-section">
+                <h2>🎯 开始游戏</h2>
+
+                <div class="game-controls">
+                    <input type="text" id="playerIdInput" placeholder="输入玩家ID (可选)" maxlength="32">
+                    <button id="newGameBtn" class="btn">开始新游戏</button>
+                </div>
+
+                <div class="difficulty-selector">
+                    <span>难度选择：</span>
+                    <button class="difficulty-btn active" data-difficulty="easy">简单 (1-50)</button>
+                    <button class="difficulty-btn" data-difficulty="normal">普通 (1-100)</button>
+                    <button class="difficulty-btn" data-difficulty="hard">困难 (1-200)</button>
+                </div>
+
+                <div id="gameArea" class="hidden">
+                    <div class="game-input">
+                        <input type="number" id="guessInput" placeholder="输入你的猜测" min="1" max="100">
+                        <button id="guessBtn" class="btn">提交猜测</button>
+                        <button id="giveUpBtn" class="btn btn-secondary">放弃</button>
+                    </div>
+
+                    <div id="gameStatus" class="game-status">
+                        准备开始游戏...
+                    </div>
+
+                    <div class="game-info">
+                        <div class="info-item">
+                            <span class="value" id="attemptsCount">0</span>
+                            <span class="label">已尝试次数</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="value" id="remainingAttempts">10</span>
+                            <span class="label">剩余机会</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="value" id="gameTime">00:00</span>
+                            <span class="label">游戏时间</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="value" id="guessRange">1-100</span>
+                            <span class="label">数字范围</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics Section -->
+            <div class="card">
+                <h2>📊 玩家统计</h2>
+                <div id="statsContent">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="number" id="totalGames">0</div>
+                            <div class="label">总游戏数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" id="winRate">0%</div>
+                            <div class="label">胜率</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" id="avgAttempts">0</div>
+                            <div class="label">平均尝试</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" id="bestScore">-</div>
+                            <div class="label">最佳记录</div>
+                        </div>
+                    </div>
+                </div>
+                <button id="refreshStatsBtn" class="btn" style="margin-top: 15px; width: 100%;">刷新统计</button>
+            </div>
+
+            <!-- History Section -->
+            <div class="card">
+                <h2>📚 游戏历史</h2>
+                <div id="historyContent">
+                    <div class="history-list" id="historyList">
+                        <p style="text-align: center; color: #666; padding: 20px;">
+                            暂无游戏记录
+                        </p>
+                    </div>
+                </div>
+                <button id="refreshHistoryBtn" class="btn" style="margin-top: 15px; width: 100%;">刷新历史</button>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>
+                基于 <a href="https://calimero.network" target="_blank">Calimero Network</a>
+                和 <a href="https://near.org" target="_blank">NEAR Protocol</a> 构建
+            </p>
+            <p style="margin-top: 10px; font-size: 0.9rem;">
+                游戏过程在本地运行，结果存储在区块链上 🔗
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Game state
+        let currentGame = null;
+        let currentPlayer = null;
+        let gameTimer = null;
+        let selectedDifficulty = 'normal';
+
+        // DOM elements
+        const gameArea = document.getElementById('gameArea');
+        const gameStatus = document.getElementById('gameStatus');
+        const playerIdInput = document.getElementById('playerIdInput');
+        const guessInput = document.getElementById('guessInput');
+        const newGameBtn = document.getElementById('newGameBtn');
+        const guessBtn = document.getElementById('guessBtn');
+        const giveUpBtn = document.getElementById('giveUpBtn');
+        const difficultyBtns = document.querySelectorAll('.difficulty-btn');
+
+        // Statistics elements
+        const totalGames = document.getElementById('totalGames');
+        const winRate = document.getElementById('winRate');
+        const avgAttempts = document.getElementById('avgAttempts');
+        const bestScore = document.getElementById('bestScore');
+        const refreshStatsBtn = document.getElementById('refreshStatsBtn');
+
+        // History elements
+        const historyList = document.getElementById('historyList');
+        const refreshHistoryBtn = document.getElementById('refreshHistoryBtn');
+
+        // Game info elements
+        const attemptsCount = document.getElementById('attemptsCount');
+        const remainingAttempts = document.getElementById('remainingAttempts');
+        const gameTime = document.getElementById('gameTime');
+        const guessRange = document.getElementById('guessRange');
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+            loadPlayerStats();
+            loadGameHistory();
+        });
+
+        function setupEventListeners() {
+            newGameBtn.addEventListener('click', startNewGame);
+            guessBtn.addEventListener('click', makeGuess);
+            giveUpBtn.addEventListener('click', giveUpGame);
+            refreshStatsBtn.addEventListener('click', loadPlayerStats);
+            refreshHistoryBtn.addEventListener('click', loadGameHistory);
+
+            guessInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !guessBtn.disabled) {
+                    makeGuess();
+                }
+            });
+
+            difficultyBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    difficultyBtns.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    selectedDifficulty = this.dataset.difficulty;
+                    updateDifficultyDisplay();
+                });
+            });
+        }
+
+        function updateDifficultyDisplay() {
+            const ranges = {
+                'easy': '1-50',
+                'normal': '1-100',
+                'hard': '1-200'
+            };
+            guessRange.textContent = ranges[selectedDifficulty] || '1-100';
+
+            if (guessInput) {
+                const maxValues = { 'easy': 50, 'normal': 100, 'hard': 200 };
+                guessInput.max = maxValues[selectedDifficulty] || 100;
+            }
+        }
+
+        async function startNewGame() {
+            const playerId = playerIdInput.value.trim() || `player_${Date.now()}`;
+            currentPlayer = playerId;
+
+            try {
+                newGameBtn.disabled = true;
+                newGameBtn.innerHTML = '<span class="loading"></span> 创建游戏中...';
+
+                const response = await fetch('/api/game/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        player_id: playerId,
+                        difficulty: selectedDifficulty
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    currentGame = {
+                        id: data.game_id,
+                        maxAttempts: data.max_attempts,
+                        range: data.range
+                    };
+
+                    showGameArea();
+                    updateGameInfo();
+                    showMessage('🎮 新游戏已开始！开始猜测吧！', 'info');
+                    startGameTimer();
+                } else {
+                    showMessage('❌ 创建游戏失败，请重试', 'error');
+                }
+            } catch (error) {
+                showMessage('❌ 网络错误，请检查连接', 'error');
+                console.error('Error starting game:', error);
+            } finally {
+                newGameBtn.disabled = false;
+                newGameBtn.innerHTML = '开始新游戏';
+            }
+        }
+
+        async function makeGuess() {
+            const guess = parseInt(guessInput.value);
+
+            if (!guess || guess < currentGame.range.min || guess > currentGame.range.max) {
+                showMessage(`❌ 请输入 ${currentGame.range.min} 到 ${currentGame.range.max} 之间的数字`, 'error');
+                return;
+            }
+
+            try {
+                guessBtn.disabled = true;
+                guessBtn.innerHTML = '<span class="loading"></span> 处理中...';
+
+                const response = await fetch(`/api/game/${currentGame.id}/guess`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ guess })
+                });
+
+                const data = await response.json();
+
+                showMessage(data.message, data.success ? 'success' : 'warning');
+
+                attemptsCount.textContent = data.attempts;
+                remainingAttempts.textContent = data.max_attempts - data.attempts;
+
+                if (data.game_over) {
+                    endGame(data.success);
+                }
+
+                guessInput.value = '';
+                guessInput.focus();
+
+            } catch (error) {
+                showMessage('❌ 网络错误，请重试', 'error');
+                console.error('Error making guess:', error);
+            } finally {
+                guessBtn.disabled = false;
+                guessBtn.innerHTML = '提交猜测';
+            }
+        }
+
+        async function giveUpGame() {
+            if (!currentGame) return;
+
+            try {
+                const response = await fetch(`/api/game/${currentGame.id}/finish`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage(`😔 游戏已放弃。正确答案是 ${data.target_number}`, 'info');
+                    endGame(false);
+                }
+            } catch (error) {
+                showMessage('❌ 结束游戏时发生错误', 'error');
+                console.error('Error giving up game:', error);
+            }
+        }
+
+        function endGame(success) {
+            stopGameTimer();
+            hideGameArea();
+            currentGame = null;
+
+            setTimeout(() => {
+                loadPlayerStats();
+                loadGameHistory();
+            }, 1000);
+
+            if (success) {
+                showMessage('🎉 恭喜获胜！游戏结果已保存到区块链', 'success');
+            } else {
+                showMessage('💾 游戏结果已保存到区块链', 'info');
+            }
+        }
+
+        function showGameArea() {
+            gameArea.classList.remove('hidden');
+            guessInput.focus();
+        }
+
+        function hideGameArea() {
+            gameArea.classList.add('hidden');
+            attemptsCount.textContent = '0';
+            remainingAttempts.textContent = '10';
+            gameTime.textContent = '00:00';
+        }
+
+        function updateGameInfo() {
+            attemptsCount.textContent = '0';
+            remainingAttempts.textContent = currentGame.maxAttempts;
+            gameTime.textContent = '00:00';
+            guessRange.textContent = `${currentGame.range.min}-${currentGame.range.max}`;
+        }
+
+        function startGameTimer() {
+            let seconds = 0;
+            gameTimer = setInterval(() => {
+                seconds++;
+                const minutes = Math.floor(seconds / 60);
+                const remainingSeconds = seconds % 60;
+                gameTime.textContent =
+                    `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        function stopGameTimer() {
+            if (gameTimer) {
+                clearInterval(gameTimer);
+                gameTimer = null;
+            }
+        }
+
+        function showMessage(message, type = 'info') {
+            // Remove existing messages
+            const existingMessages = gameStatus.querySelectorAll('.status-message');
+            existingMessages.forEach(msg => msg.remove());
+
+            // Create new message
+            const messageEl = document.createElement('div');
+            messageEl.className = `status-message ${type}`;
+            messageEl.textContent = message;
+
+            gameStatus.innerHTML = '';
+            gameStatus.appendChild(messageEl);
+
+            // Auto-remove info messages after 5 seconds
+            if (type === 'info' || type === 'warning') {
+                setTimeout(() => {
+                    if (messageEl.parentNode) {
+                        messageEl.remove();
+                    }
+                }, 5000);
+            }
+        }
+
+        async function loadPlayerStats() {
+            if (!currentPlayer) {
+                currentPlayer = playerIdInput.value.trim() || `player_${Date.now()}`;
+            }
+
+            try {
+                const response = await fetch(`/api/stats/player/${encodeURIComponent(currentPlayer)}`);
+                const stats = await response.json();
+
+                totalGames.textContent = stats.total_games;
+                winRate.textContent = `${stats.win_rate.toFixed(1)}%`;
+                avgAttempts.textContent = stats.average_attempts.toFixed(1);
+                bestScore.textContent = stats.best_score === 4294967295 ? '-' : stats.best_score;
+
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        async function loadGameHistory() {
+            if (!currentPlayer) return;
+
+            try {
+                const response = await fetch(`/api/history/${encodeURIComponent(currentPlayer)}?limit=10`);
+                const history = await response.json();
+
+                if (history.length === 0) {
+                    historyList.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">暂无游戏记录</p>';
+                    return;
+                }
+
+                historyList.innerHTML = '';
+
+                history.forEach(record => {
+                    const item = document.createElement('div');
+                    item.className = `history-item ${record.success ? 'success' : 'failed'}`;
+
+                    const date = new Date(record.timestamp * 1000);
+                    const dateStr = date.toLocaleString('zh-CN', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+
+                    const duration = record.duration_seconds < 60
+                        ? `${record.duration_seconds}秒`
+                        : `${Math.floor(record.duration_seconds / 60)}分${record.duration_seconds % 60}秒`;
+
+                    item.innerHTML = `
+                        <div>
+                            <strong>${record.success ? '✅ 成功' : '❌ 失败'}</strong>
+                            <div style="font-size: 0.85rem; color: #666;">
+                                ${record.attempts} 次尝试 • ${duration} • ${record.difficulty}
+                            </div>
+                        </div>
+                        <div style="text-align: right; font-size: 0.85rem; color: #666;">
+                            ${dateStr}
+                        </div>
+                    `;
+
+                    historyList.appendChild(item);
+                });
+
+            } catch (error) {
+                console.error('Error loading history:', error);
+                historyList.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">加载历史记录失败</p>';
+            }
+        }
+
+        // Utility functions
+        function getPlayerIdOrGenerate() {
+            return playerIdInput.value.trim() || `player_${Date.now()}`;
+        }
+
+        // Health check
+        async function checkServerHealth() {
+            try {
+                const response = await fetch('/health');
+                const health = await response.json();
+                console.log('Server health:', health);
+            } catch (error) {
+                console.error('Server health check failed:', error);
+            }
+        }
+
+        // Initialize difficulty display
+        updateDifficultyDisplay();
+
+        // Check server health on load
+        checkServerHealth();
+    </script>
+</body>
+</html>
